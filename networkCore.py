@@ -12,9 +12,9 @@ URL: {4}
 
 AUTHOR = "mtech0 | https://github.com/mtech0"
 LICENSE = "GNU-GPLv3 | https://www.gnu.org/licenses/gpl.txt"
-VERSION = "0.0.0"
+VERSION = "'P2P' 1.0.0"
 STATUS = "Development"
-URL = "None"
+URL = ""
 __doc__ = __doc__.format(AUTHOR, VERSION, STATUS, LICENSE, URL)
 
 
@@ -83,7 +83,7 @@ def connect(host="localhost", port=3110, debug=True):
         return soc
 
 class Client(threading.Thread, Thread_tools):
-    """Socket Client handler.
+    """Socket Client Handler.
 
     Runs a full duplex socket automatically once started.
 
@@ -110,7 +110,7 @@ class Client(threading.Thread, Thread_tools):
         self.inc = incoming # Queue
         self.kill = kill # Event
         self.debug = debug
-        self.is_run = run
+        self.is_autorun = run
         self.timeout = timeout
         self.soc.settimeout(self.timeout)
         self.header_st = "%N$T£H%"
@@ -120,6 +120,7 @@ class Client(threading.Thread, Thread_tools):
 
     def run(self):
         """Run the socket."""
+        self.debug_msg("Running Socket Client Handler")
         outgoing = Outgoing(self.soc, self.out, self.inc, self.kill, self.debug, True, self.timeout)
         incoming = Incoming(self.soc, self.out, self.inc, self.kill, self.debug, True, self.timeout)
         outgoing.join()
@@ -138,6 +139,7 @@ class Outgoing(Client):
 
     def run(self):
         """Run outgoing msgs on the socket."""
+        self.debug_msg("Running Outgoing Traffic Handler.")
         while not self.kill.is_set():
             try:
                 msg = self.out.get(True, self.timeout)
@@ -160,6 +162,7 @@ class Incoming(Client):
     """
 
     def run(self):
+        self.debug_msg("Runnning Incoming Traffic Handler.")
         len_header_st = len(self.header_st)
         len_header_le = len(self.header_le)
         len_min_header = len_header_st + 1 + len_header_le
