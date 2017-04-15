@@ -19,208 +19,269 @@ __doc__ = __doc__.format(AUTHOR, VERSION, STATUS, LICENSE, URL)
 
 import threading
 import queue
-#import sys # geting system args also with msvcrt
-#import traceback # dev
-#import msvcrt # need work
-#import time # need work
-#import networkTesting # does this belong here?
 from tools import debug_msg, Tools, Thread_tools, main, sys_args
 import errors
 
 class Core(threading.Thread, Thread_tools):
     """The Core of msgCore.py."""
 
-    def __init__(self, interface, qu_inputs, qu_to_connection, qu_from_connection, qu_to_interface, kill, debug=True, run=True, timeout=5.0):
+    def __init__(self, qu_inputs, qu_outbound, qu_inbound, qu_interface, kill, debug=True, run=True, timeout=5.0):
         """Initialization.
 
         """
         threading.Thread.__init__(self)
-        self.interface = interface # What is this? The interface object or a queue to send cmds down???
+        #self.interface = interface # What is this? The interface object or a queue to send cmds down???
         self.qu_inputs = qu_inputs
-        self.qu_to_interface = qu_to_interface
-        self.qu_from_connection = qu_from_connection
-        self.qu_to_interface = self.qu_to_interface
+        self.qu_outbound = qu_outbound
+        self.qu_inbound = qu_inbound
+        self.qu_interface = self.qu_interface
         self.kill = kill
         self.debug = debug
         self.is_autorun = run
         self.timeout = timeout
-        self.cmds = self.get_cmds()
+        self.get_cmds()
         Thread_tools.__init__(self)
-
-    def get_cmds(self):
-        """Return Commands - IDK why I did it this way, I just did.
-
-        Could have passed it through as arg but that is boring.
-        Layout:
-            { Name: [Command, Function, [Args], Discription], }
-        """
-        return {"kill": ["£!:kill", self.kill_connnection, None, "Kill the program."],
-                "print": ["£+:", self.relay_print, ["msg"], "Print a msg."],
-                }
 
     def run(self):
         """Core Thread."""
         self.debug_msg("Running Core Thread.")
-        self.incoming = Incoming() # Args
-        self.outgoing = Outgoing() # Args
+        self.incoming = Incoming(self.qu_inputs, self.qu_outbound, self.qu_inbound, self.qu_interface, self.kill, self.debug, self.is_autorun, self.timeout)
+        self.outgoing = Outgoing(self.qu_inputs, self.qu_outbound, self.qu_inbound, self.qu_interface, self.kill, self.debug, self.is_autorun, self.timeout)
         self.incoming.join()
         self.outgoing.join()
 
-    # Inherited methods - Both halves use them.
-    def kill_connnection():
+    def get_cmds(self):
+        """Define Commands."""
+
+    def cmd_handler(self, *args):
+        """Command Handler."""
+        if not "--bypass-arg-aliases" in args:
+            try:
+                args = self.correct_aliases(*args)
+            except NameError:
+                self.cmd_handler("--setup", "--bypass-arg-aliases")
+                args = self.correct_aliases(*args)
+        if "--setup" in args:
+            """
+            Setup.
+            """
+            # System commands
+            # {Name: [Command, Function, [Args], Discription], ...}
+            self.sys_cmds = {"kill": ["£!:kill", self.kill_connnection, None, "Kill the connection."],
+                             "print": ["£+:", self.relay_print, ["msg"], "Print a msg."], # Also send
+                             "echo": ["£!:echo:", self.echo, ["msg"], "Echo a msg back to sender."]
+                             }
+            # User commands
+            # {Name: [[cmd-aliases], Function, [Args], Discription], ...}
+            self.usr_cmds = {"kill": [["kill"], self.kill_connnection, None, "Kill the connection."],
+                             "help": [["help", "h"], self.cmd_help, ["msg"], "Show help."]
+                             "echo": [["echo", "e"], self.]
+                             }
+            # User command prefix
+            self.prefix = "-" # Need to change to a function for runtime updating accross threads.
+            # Command arg aliases
+            # {arg: [aliases], ...}
+            self.cmd_arg = {"--setup": None,
+                            "--help": ["--help", "-h"],
+                            "--bypass-arg-aliases": None,
+                            "--send": ["-s"],
+                            }
+            # Inverting command arg aliases.
+            self.usr_cmd_arg_alias = {}
+            for arg in self.usr_cmd_arg:
+                if self.usr_cmd_arg[arg]:
+                    for alias in self.usr_cmd_arg_alias[arg]:
+                        self.usr_cmd_arg_alias[alias] = arg
+
+        if "--help" in args:
+            amount_of_args = len(args)
+            pos = args.index("--help") + 1
+            if pos >= amount_of_args:
+                cmd = args[pos]
+                if cmd.startswith(self.prefix):
+                    cmd = cmd[1:]
+                found = False
+                for cmd in self.usr_cmds:
+                    for alias in self.usr_cmds[cmd]:
+                        if cmd == alias:
+                            found = True
+                            return self.usr_cmds[cmd][1]("--help")
+                if not found:
+                    return "Unknown command. Type '{0}commands' list of commands.".format(self.prefix)
+            else:
+                return "To get help on a command type '{0}help <command>'.\nFor a list of commands type '{0}commands'".format(self.prefix)
+
+    # Commands
+    def kill_connnection(self, *args):
         """Kill the connection."""
+        args = self.correct_aliases(*args)
+        if "--help" in args:
+            return "Command '{0}kill' kills the current connection.".format(self.prefix)
         self.debug_msg("Killing the connection.")
         # @ the moment well kill all the threads :)
         self.kill.set()
 
-    def remove_prefix(self, msg, cmd):
+    def relay_print(self, msg, *args):
+        """Process and relay msg to print_queue.
+
+        msg - The whole msg | string
+
+        """
+        args = self.correct_aliases(msg, *args)
+        if "--help" in args:
+            return "System command, idk how you got this to show in the interface.\nSend a msg to interface queue."
+        self.debug_msg("Process and relay msg for print.")
+        self.qu_interface.put(self.remove_cmd_prefix(msg, "print"))
+
+    def send_msg(self, msg, *args):
+        """Send msg to outbound queue.
+
+        msg - String to send to outbound queue | string
+
+        """
+        args = self.correct_aliases(msg, *args)
+        if "--help" in args:
+            return "System command, idk how you got this to show in the interface.\nSend a msg to outbound queue."
+        self.debug_msg("Adding msg to outbound queue")
+        self.qu_outbound.put(msg)
+
+    def cmd_help(self, *args):
+        """Displays user command help.
+
+        msg - A command to get help on | string
+                / If not given, will show general help.
+
+        """
+        args = self.correct_aliases(*args)
+        if "--help" in args:
+            return "Command '{0}help [command]' shows gernal help or help on given command.".format(self.prefix)
+        if args:
+            msg = args[0]
+            cmd = msg.split()[1]
+            info = self.cmd_handler("--help", cmd)
+            self.relay_print(info)
+        else:
+            info = self.cmd_handler("--help")
+            self.relay_print(info)
+
+    def echo(self, msg, *args):
+        """Echo a message.
+
+        msg - Full command string | string
+
+        """
+        args = self.correct_aliases(msg, *args)
+        if "--help" in args:
+            return "Command '{0}echo <msg>' echos msg.".format(self.prefix)
+        if msg.startswith(self.sys_cmds["echo"][0]):
+            msg = self.remove_cmd_prefix(msg, "echo")
+            self.qu_interface.put("Connection echoed '{0}'".format(msg))
+            self.send_msg(self.add_cmd_prefix(msg, "print"))
+        else:
+            pos = msg.find(" ") + 1
+            msg = msg[pos:]
+            self.send_msg(self.add_cmd_prefix(msg, "echo"))
+
+    # Tools
+    def remove_cmd_prefix(self, msg, cmd):
         """Remove the cmd prefix from msg.
 
         msg - The msg to remove the prefix from cmd from | string
-        cmd - The command name of the prefix to remove from self.cmds | string
+        cmd - The command name of the prefix to remove from self.sys_cmds | string
 
         """
-        # May only be used by incoming?
         self.debug_msg("Remove prefix function called.")
-        return msg[len(self.cmds[cmd][0]):]
+        return msg[len(self.sys_cmds[cmd][0]):]
 
+    def add_cmd_prefix(self, msg, cmd):
+        """Add the cmd prefix to msg.
+
+        msg - The msg to add the prefix from cmd to | string
+        cmd - The command name of the prefix to add from self.sys_cmds | string
+
+        """
+        return self.sys_cmds[cmd][0] + msg
+
+    def correct_aliases(self, *args):
+        re = []
+        for arg in args:
+            if arg in self.usr_cmd_arg_alias:
+                re.append(self.usr_cmd_arg_alias[arg])
+            else:
+                re.append(arg)
+        return re
 
 class Incoming(Core):
-    """Incoming data handler."""
+    """Incoming data handler.
 
-    def __init__(self, in_queue, print_queue, kill, debug=True, run=True, timeout=5.0):
-        """Initialization.
+    Requires the same arguments as Core.
 
-        in_queue - Incoming data queue object | object
-        print_queue - Queue object for msgs to be show to user | object
-        kill - Event object to kill thread | object
-        debug - Print debug info | boolean
-                / Defaults to True
-        run - Autorun thread | boolean
-                / Defaults to True
-        timeout - Time to wait on blocking functions so able to check kill | float
-                / Defaults to 5.0
-
-        """
-        threading.Thread.__init__(self)
-        self.in_queue = in_queue
-        self.print_queue = print_queue
-        self.kill = kill
-        self.debug = debug
-        self.is_autorun = run
-        self.timeout = timeout
-        self.cmds = self.get_cmds()
-        Thread_tools.__init__(self)
+    """
 
     def run(self):
         """Handler thread."""
         self.debug_msg("Running Incoming Data Handler.")
         while not self.kill.is_set():
             try:
-                msg = self.in_queue.get(True, 5.0)
+                msg = self.qu_inbound.get(True, self.timeout)
                 # Check for commands
-                for cmd in self.cmds:
-                    if msg.startswith(self.cmds[cmd][0]):
+                for cmd in self.sys_cmds:
+                    if msg.startswith(self.sys_cmds[cmd][0]):
                         args = []
                         # Check for args needed
-                        if self.cmds[cmd][2]:
+                        if self.sys_cmds[cmd][2]:
                             # go through args
-                            for arg in self.cmds[cmd][2]:
+                            for arg in self.sys_cmds[cmd][2]:
                                 # possible args
                                 if arg == "msg":
                                     args.append(msg)
-                        self.cmds[cmd][1](*args)
+                        self.sys_cmds[cmd][1](*args)
                         break
             except queue.Empty:
                 pass
 
-    def relay_print(self, msg):
-        """Process and relay msg to print_queue.
 
-        msg - The whole msg | string
+class Outgoing(Core):
+    """User input and outgoing data handler.
 
-        """
-        self.debug_msg("Process and relay msg for print.")
-        self.print_queue.put(self.remove_prefix(msg, "print"))
+    Requires the same arguments as Core.
 
-# We are here in clean up
-class Interface(threading.Thread):
-    """Interface class."""
-    def __init__(self, msg_queue, kill, run=True):
-        threading.Thread.__init__(self)
-        self.msg_queue = msg_queue
-        self.kill = kill
-        if run:
-            self.start()
+    """
 
     def run(self):
+        self.debug_msg("Outgoing data handler running.")
         while not self.kill.is_set():
-            msg = input(">", 5.0)
-            if msg == "-exit":
-                self.msg_queue.put("$%KILL$%")
-                self.kill.set()
-            else:
-                self.msg_queue.put(msg)
-                time.sleep(0.05)
+            try:
+                msg = self.qu_inputs.get(True, self.timeout)
+                # is user cmd?
+                if msg.startswith(self.prefix):
+                    # display help = not found
+                    found = False
+                    # check for cmd
+                    for cmd in self.usr_cmds:
+                        for alias in self.usr_cmds[cmd][0]
+                            if msg.startswith(self.prefix + alias):
+                                found = True
+                                args = []
+                                # go through args
+                                if self.usr_cmds[cmd][2]:
+                                    for arg in self.usr_cmds[cmd][2]:
+                                        # possible args
+                                        if arg == "None @ the moment":
+                                            args.append("None @ the moment")
+                                self.usr_cmds[cmd][1](*args)
+                                break
+                        if found:
+                            break
+                    # usr cmd help
+                    if not found:
+                        self.usr_cmd_help(msg) # update
+                # just msg
+                else:
+                    self.send_msg(self.add_cmd_prefix(msg, "print") # update
+            except queue.Empty:
+                pass
 
-class Main():
-    """Main functions as a class so threads could be shutdown."""
-    def __init__(self):
-        print("Loaded")
-
-    def run(self):
-        self.in_queue = queue.Queue()
-        self.out_queue = queue.Queue()
-        self.sockets = queue.Queue()
-        self.kill = threading.Event()
-        if True in args("-s", "--server"):
-            self.server = networkTesting.Server(self.sockets, self.kill)
-            self.socket = self.sockets.get()
-        elif True in args("-c", "--client"):
-            self.socket = networkTesting.connect()
-        else:
-            print("No args give. Terminating.")
-            self.kill.set()
-            exit()
-        self.client = networkTesting.Client(self.socket, self.out_queue, self.in_queue, self.kill)
-        self.interface = Interface(self.out_queue, self.kill)
-        self.printer = Printer(self.in_queue, self.kill)
-
-
-
-class TimeoutExpired(Exception):
-    pass
-
-_input = input
-def input(prompt, timeout=None, timer=time.monotonic):
-    if not timeout:
-        return _input(prompt)
-    else:
-        sys.stdout.write(prompt)
-        sys.stdout.flush()
-        endtime = timer() + timeout
-        result = []
-        while timer() < endtime:
-            if msvcrt.kbhit():
-                result.append(msvcrt.getwche()) #XXX can it block on multibyte characters?
-                if result[-1] == '\n':   #XXX check what Windows returns here
-                    return ''.join(result[:-1])
-                    time.sleep(0.04) # just to yield to other processes/threads
-        raise TimeoutExpired
 
 if __name__ == '__main__':
-    main = Main()
-    try:
-        main.run()
-    except Exception as e:
-        main.kill.set()
-        try:
-            raise Exception
-        except:
-            pass
-        print("=====================")
-        print("---ERROR---")
-        print(e)
-        print(traceback.print_tb(e.__traceback__))
-        print("=====================")
-        exit()
+    main(__doc__)
