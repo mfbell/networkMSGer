@@ -17,7 +17,7 @@ STATUS = "Development"
 URL = ""
 __doc__ = __doc__.format(AUTHOR, VERSION, STATUS, LICENSE, URL)
 
-# import errors
+import sys
 
 def debug_msg(debug, msg):
     """Debug message printer. if True.
@@ -35,7 +35,7 @@ def debug_msg(debug, msg):
         except AttributeError:
             raise TypeError("Invalid Argument Type for 'debug': {0} ({1})".format(debug, type(debug)))
     if debug:
-        print(msg)
+        print("[DEBUGGING]:", msg)
 
 def sys_args(*check):
     """System Arg Handler Function.
@@ -61,7 +61,7 @@ class Tools():
     """General Tool class."""
     def __init__(self):
         """Initialization."""
-        self.debug_msg(__doc__.splitlines[0][:-1], "initialized.")
+        self.debug_msg(self.__doc__.splitlines()[0][:-1] + " initialized.")
 
     def debug_msg(self, msg):
         """Class rapper for debug_msg."""

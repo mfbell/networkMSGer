@@ -21,7 +21,7 @@ __doc__ = __doc__.format(AUTHOR, VERSION, STATUS, LICENSE, URL)
 import socket
 import threading
 import queue
-from tools import debug_msg, Tools, Thread_tools, main
+from tools import debug_msg, Thread_tools, main
 import errors
 
 class Incoming_connections_handler(threading.Thread, Thread_tools):
@@ -79,7 +79,7 @@ def connect(host="localhost", port=3110, debug=True):
         """Connection Handler."""
         soc = socket.socket()
         soc.connect((host, port))
-        debug_msg("Connected to {0}, port {1}".format(host, port))
+        debug_msg(debug, "Connected to {0}, port {1}".format(host, port))
         return soc
 
 class Client(threading.Thread, Thread_tools):
