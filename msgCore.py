@@ -61,9 +61,6 @@ class Core(threading.Thread, Thread_tools):
         self.incoming.join()
         self.outgoing.join()
 
-    def get_cmds(self):
-        """Define Commands."""
-
     def cmd_handler(self, *args):
         """Command Handler.
 
