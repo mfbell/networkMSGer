@@ -24,7 +24,7 @@ import traceback # Error catching/debugging.
 from tools import debug_msg, Tools, sys_args
 import msgCore
 import networkCore
-if sys_args("gui"):
+if sys_args("-gui"):
     print("unsupported at the moment.")
     exit()
     #import msgGUI as ui
@@ -94,6 +94,28 @@ class Run(Tools):
 
 
 def main():
+    if True in sys_args("--help", "-h"):
+        print("""Usage: python .\msgMain [options]
+
+Options:
+    - Connection mode:
+        Server or Client:
+        Defaults to client, to run as server --server or -s
+    - Interface:
+        CLI or GUI:
+        Defaults to CLI, -gui for GUI (not supported yet.)
+    - Debug text:
+        Defaults to false, to enable --debug or -d
+    - Timeout/Thread kill responsiveness:
+        Defaults to 5.0, to change --timeout <seconds> or -t <seconds>
+    - Hostname to connect to:
+        Defaults to localhost, to change --host <name> or -h <name>
+    - Port to connect to or run listening server on:
+        Defaults to 3110, to change --port <number> or -p <number>
+Note: Only -d, -s and -c have been test and even they may have lot of bugs :)
+If you find a bug please submit it to https://github.com/mtech0/networkMSGer/issues thanks.
+""")
+        exit()
     app = Run()
     try:
         app.run()

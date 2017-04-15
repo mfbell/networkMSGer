@@ -1,5 +1,5 @@
 # networkMSGer Application
-Info coming soon.
+Run 'python .\msgMain.py --help' for help. 
 
 ## Stuff
 * Written by mtech0 | https://github.com/mtech0
