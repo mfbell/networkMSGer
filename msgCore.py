@@ -12,7 +12,7 @@ URL: {4}
 
 AUTHOR = "mtech0 | https://github.com/mtech0"
 LICENSE = "GNU-GPLv3 | https://www.gnu.org/licenses/gpl.txt"
-VERSION = "0.9.0"
+VERSION = "0.9.1"
 STATUS = "Development"
 URL = ""
 __doc__ = __doc__.format(AUTHOR, VERSION, STATUS, LICENSE, URL)
@@ -27,6 +27,18 @@ class Core(threading.Thread, Thread_tools):
 
     def __init__(self, qu_inputs, qu_outbound, qu_inbound, qu_interface, kill, debug=True, run=True, timeout=5.0):
         """Initialization.
+
+        qu_inputs - User input queue object | object
+        qu_outbound - Outbound data queue object | object
+        qu_inbound - Inbound data queue object | object
+        qu_interface - User interface display queue object | object
+        kill - Event object to kill thread | object
+        debug - Print debug info | boolean
+                / Defaults to True
+        run - Autorun thread | boolean
+                / Defaults to True
+        timeout - Time to wait on blocking functions so able to check kill | float
+                / Defaults to 5.0
 
         """
         threading.Thread.__init__(self)
@@ -54,7 +66,13 @@ class Core(threading.Thread, Thread_tools):
         """Define Commands."""
 
     def cmd_handler(self, *args):
-        """Command Handler."""
+        """Command Handler.
+
+        *args - Arguments:
+                "--setup" - Setup commands.
+                "--help" [cmd] - return help [on cmd]
+
+        """
         if not "--bypass-arg-aliases" in args:
             try:
                 args = self.correct_aliases(*args)
@@ -74,8 +92,8 @@ class Core(threading.Thread, Thread_tools):
             # User commands
             # {Name: [[cmd-aliases], Function, [Args], Discription], ...}
             self.usr_cmds = {"kill": [["kill"], self.kill_connnection, None, "Kill the connection."],
-                             "help": [["help", "h"], self.cmd_help, ["msg"], "Show help."]
-                             "echo": [["echo", "e"], self.]
+                             "help": [["help", "h"], self.cmd_help, ["msg"], "Show help."],
+                             "echo": [["echo", "e"], self.echo, ["msg"], "Send an echo."]
                              }
             # User command prefix
             self.prefix = "-" # Need to change to a function for runtime updating accross threads.
@@ -113,7 +131,11 @@ class Core(threading.Thread, Thread_tools):
 
     # Commands
     def kill_connnection(self, *args):
-        """Kill the connection."""
+        """Kill the connection.
+
+        *args: Arguments:
+                "--help" return help
+        """
         args = self.correct_aliases(*args)
         if "--help" in args:
             return "Command '{0}kill' kills the current connection.".format(self.prefix)
@@ -125,6 +147,8 @@ class Core(threading.Thread, Thread_tools):
         """Process and relay msg to print_queue.
 
         msg - The whole msg | string
+        *args/msg: Arguments:
+                "--help" return help
 
         """
         args = self.correct_aliases(msg, *args)
@@ -137,6 +161,8 @@ class Core(threading.Thread, Thread_tools):
         """Send msg to outbound queue.
 
         msg - String to send to outbound queue | string
+        *args/msg: Arguments:
+                "--help" return help
 
         """
         args = self.correct_aliases(msg, *args)
@@ -150,6 +176,8 @@ class Core(threading.Thread, Thread_tools):
 
         msg - A command to get help on | string
                 / If not given, will show general help.
+        *args/msg: Arguments:
+                "--help" return help
 
         """
         args = self.correct_aliases(*args)
@@ -168,6 +196,8 @@ class Core(threading.Thread, Thread_tools):
         """Echo a message.
 
         msg - Full command string | string
+        *args/msg: Arguments:
+                "--help" return help
 
         """
         args = self.correct_aliases(msg, *args)
@@ -203,6 +233,11 @@ class Core(threading.Thread, Thread_tools):
         return self.sys_cmds[cmd][0] + msg
 
     def correct_aliases(self, *args):
+        """Turn aliases into full arg.
+
+        *args - Any amount of aliases and/or args | Strings
+
+        """
         re = []
         for arg in args:
             if arg in self.usr_cmd_arg_alias:
@@ -249,6 +284,7 @@ class Outgoing(Core):
     """
 
     def run(self):
+        """Handler thread."""
         self.debug_msg("Outgoing data handler running.")
         while not self.kill.is_set():
             try:
@@ -259,7 +295,7 @@ class Outgoing(Core):
                     found = False
                     # check for cmd
                     for cmd in self.usr_cmds:
-                        for alias in self.usr_cmds[cmd][0]
+                        for alias in self.usr_cmds[cmd][0]:
                             if msg.startswith(self.prefix + alias):
                                 found = True
                                 args = []
@@ -275,10 +311,10 @@ class Outgoing(Core):
                             break
                     # usr cmd help
                     if not found:
-                        self.usr_cmd_help(msg) # update
+                        self.usr_cmd_help(msg)
                 # just msg
                 else:
-                    self.send_msg(self.add_cmd_prefix(msg, "print") # update
+                    self.send_msg(self.add_cmd_prefix(msg, "print"))
             except queue.Empty:
                 pass
 
