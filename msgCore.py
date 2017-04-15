@@ -19,18 +19,70 @@ __doc__ = __doc__.format(AUTHOR, VERSION, STATUS, LICENSE, URL)
 
 import threading
 import queue
-import sys # geting system args also with msvcrt
-import traceback # dev
-import msvcrt # need work
-import time # need work
-import networkTesting # does this belong here?
-from tools import debug_msg, Tools, Thread_tools, main
+#import sys # geting system args also with msvcrt
+#import traceback # dev
+#import msvcrt # need work
+#import time # need work
+#import networkTesting # does this belong here?
+from tools import debug_msg, Tools, Thread_tools, main, sys_args
 import errors
 
 class Core(threading.Thread, Thread_tools):
     """The Core of msgCore.py."""
 
-    def __init__(self, )
+    def __init__(self, interface, qu_inputs, qu_to_connection, qu_from_connection, qu_to_interface, kill, debug=True, run=True, timeout=5.0):
+        """Initialization.
+
+        """
+        threading.Thread.__init__(self)
+        self.interface = interface # What is this? The interface object or a queue to send cmds down???
+        self.qu_inputs = qu_inputs
+        self.qu_to_interface = qu_to_interface
+        self.qu_from_connection = qu_from_connection
+        self.qu_to_interface = self.qu_to_interface
+        self.kill = kill
+        self.debug = debug
+        self.is_autorun = run
+        self.timeout = timeout
+        self.cmds = self.get_cmds()
+        Thread_tools.__init__(self)
+
+    def get_cmds(self):
+        """Return Commands - IDK why I did it this way, I just did.
+
+        Could have passed it through as arg but that is boring.
+        Layout:
+            { Name: [Command, Function, [Args], Discription], }
+        """
+        return {"kill": ["£!:kill", self.kill_connnection, None, "Kill the program."],
+                "print": ["£+:", self.relay_print, ["msg"], "Print a msg."],
+                }
+
+    def run(self):
+        """Core Thread."""
+        self.debug_msg("Running Core Thread.")
+        self.incoming = Incoming() # Args
+        self.outgoing = Outgoing() # Args
+        self.incoming.join()
+        self.outgoing.join()
+
+    # Inherited methods - Both halves use them.
+    def kill_connnection():
+        """Kill the connection."""
+        self.debug_msg("Killing the connection.")
+        # @ the moment well kill all the threads :)
+        self.kill.set()
+
+    def remove_prefix(self, msg, cmd):
+        """Remove the cmd prefix from msg.
+
+        msg - The msg to remove the prefix from cmd from | string
+        cmd - The command name of the prefix to remove from self.cmds | string
+
+        """
+        # May only be used by incoming?
+        self.debug_msg("Remove prefix function called.")
+        return msg[len(self.cmds[cmd][0]):]
 
 
 class Incoming(Core):
@@ -57,11 +109,7 @@ class Incoming(Core):
         self.debug = debug
         self.is_autorun = run
         self.timeout = timeout
-        # Need to move cmds to a class which controls/get inherited by the applicable classes.
-        # {Name: [Command, Function, [Args], Discription],}
-        self.cmds = {"kill": ["£!:kill", self.kill_connnection, None, "Kill the program."],
-                     "print": ["£+:", self.relay_print, ["msg"], "Print a msg."],
-                     }
+        self.cmds = self.get_cmds()
         Thread_tools.__init__(self)
 
     def run(self):
@@ -95,21 +143,6 @@ class Incoming(Core):
         self.debug_msg("Process and relay msg for print.")
         self.print_queue.put(self.remove_prefix(msg, "print"))
 
-    def kill_connnection():
-        """Kill the connection."""
-        self.debug_msg("Killing the connection.")
-        # @ the moment well kill all the threads :)
-        self.kill.set()
-
-    def remove_prefix(self, msg, cmd):
-        """Remove the cmd prefix from msg.
-
-        msg - The msg to remove the prefix from cmd from | string
-        cmd - The command name of the prefix to remove from self.cmds | string
-
-        """
-        self.debug_msg("Remove prefix function called.")
-        return msg[len(self.cmds[cmd][0]):]
 # We are here in clean up
 class Interface(threading.Thread):
     """Interface class."""
@@ -153,21 +186,7 @@ class Main():
         self.interface = Interface(self.out_queue, self.kill)
         self.printer = Printer(self.in_queue, self.kill)
 
-def args(*check):
-    """Check passed arguments or call them.
-    Check for argument(s) or return all.
-    *check - Strings
-            - Returns list of Trues/Falses, if multiple given, or boolean
-              if single argument is given.
-    """
-    if not check:
-        return sys.argv[1:]
-    else:
-        re = []
-        for i in check:
-            re.append(i in sys.argv[1:])
-        if len(re) == 1: re = re[0]
-        return re
+
 
 class TimeoutExpired(Exception):
     pass

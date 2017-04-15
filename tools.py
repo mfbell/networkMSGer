@@ -37,6 +37,26 @@ def debug_msg(debug, msg):
     if debug:
         print(msg)
 
+def sys_args(*check):
+    """System Arg Handler Function.
+
+    Check if arg(s) were given or return all.
+
+    *check - Args to compare to those give to sys | Strings
+            / If none are give, all argv given to system are returned.
+            / If args are give, it will check if they were given to sys.
+                Returning a list of Trues/False or signal if isngle arg is given.
+
+    """
+    if not check:
+        return sys.argv[1:]
+    else:
+        re = []
+        for i in check:
+            re.append(i in sys.argv[1:])
+        if len(re) == 1: re = re[0]
+        return re
+
 class Tools():
     """General Tool class."""
     def __init__(self):
